@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live Camera Share</title><script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:20px 14px;background:#f3f5f8;color:#172033;font-family:system-ui,sans-serif}main{max-width:600px;margin:auto;background:white;padding:20px;border-radius:18px}h1{font-size:24px}p{line-height:1.5;color:#4b5563}.panel{border:1px solid #e1e6ee;border-radius:14px;padding:14px;margin-top:15px}video{width:100%;min-height:180px;background:#111827;border-radius:12px}input{width:100%;padding:13px;border:1px solid #cbd5e1;border-radius:10px;font-size:16px}button{border:0;border-radius:10px;padding:13px;margin:5px 3px 5px 0;background:#1d4ed8;color:white;font-weight:650}button.secondary{background:#e8eefc;color:#1e40af}button.stop{background:#b91c1c}button:disabled{opacity:.45}.room{word-break:break-all;background:#eef2ff;padding:10px;border-radius:9px;font-weight:bold}#status{min-height:25px;font-size:14px}.note{font-size:13px;color:#64748b}
+</style></head><body><main>
+<h1>লাইভ ক্যামেরা শেয়ার</h1><p>একটি ফোন ক্যামেরা শেয়ার করবে, অন্য ফোন Room ID দিয়ে লাইভ ভিডিও দেখবে। ক্যামেরার মালিককে নিজে অনুমতি দিয়ে শেয়ার শুরু করতে হবে।</p>
+<section class="panel"><h2>ফোন ১ — ক্যামেরা শেয়ার করুন</h2><video id="local" autoplay playsinline muted></video><br>
+<button id="start">ক্যামেরা চালু ও শেয়ার শুরু</button><button id="flip" class="secondary" disabled>Front / Back</button><button id="stop" class="stop" disabled>শেয়ার বন্ধ</button>
+<p>আপনার Room ID:</p><div id="room" class="room">শেয়ার শুরু করলে এখানে ID আসবে</div><button id="copy" class="secondary" disabled>Room ID কপি করুন</button></section>
+<section class="panel"><h2>ফোন ২ — লাইভ ভিডিও দেখুন</h2><p>ফোন ১-এর Room ID লিখুন</p><input id="remoteId" placeholder="Room ID"><button id="join">লাইভে যুক্ত হন</button><video id="remote" autoplay playsinline controls></video><br><button id="leave" class="stop" disabled>সংযোগ বন্ধ</button></section>
+<div id="status">প্রস্তুত। দুই ফোনেই ইন্টারনেট চালু রাখুন।</div>
+<p class="note">ক্যামেরা অনুমতি ছাড়া চালু হয় না। শেয়ার বন্ধ করলে ক্যামেরা বন্ধ হবে। ভিডিও রেকর্ড বা সংরক্ষণ করা হয় না। বিনামূল্যের এই সংযোগে TURN relay নেই, তাই কিছু নেটওয়ার্কে সংযোগ নাও হতে পারে।</p>
+</main>
+<script>
+(()=>{const $=x=>document.getElementById(x);let peer=null,stream=null,call=null,mode='environment',sharing=false;
+function msg(t){$('status').textContent=t}
+function stopCall(){if(call){call.close();call=null}$('remote').srcObject=null;$('leave').disabled=true}
+async function start(){try{if(!window.Peer){msg('লাইভ সংযোগ লাইব্রেরি লোড হয়নি; ইন্টারনেট পরীক্ষা করুন।');return}
+if(stream)stream.getTracks().forEach(t=>t.stop());
+stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:mode}}});$('local').srcObject=stream;
+if(peer){peer.destroy();peer=null}
+peer=new Peer(undefined,{host:'0.peerjs.com',port:443,path:'/',secure:true});
+peer.on('open',id=>{$('room').textContent=id;$('copy').disabled=false;$('start').disabled=true;$('stop').disabled=false;$('flip').disabled=false;sharing=true;msg('শেয়ার চালু। Room ID দ্বিতীয় ফোনে দিন।')});
+peer.on('call',c=>{if(!sharing){c.close();return}call=c;c.answer(stream);c.on('close',()=>{call=null;msg('দর্শকের সংযোগ বন্ধ হয়েছে।')});msg('একটি ফোন লাইভ ক্যামেরায় যুক্ত হয়েছে।')});
+peer.on('error',e=>msg('সংযোগ সমস্যা: '+e.type));
+}catch(e){msg('ক্যামেরা চালু হয়নি: '+e.message)}}
+function stop(){sharing=false;stopCall();if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('local').srcObject=null;if(peer){peer.destroy();peer=null}
+$('room').textContent='শেয়ার বন্ধ';$('copy').disabled=true;$('start').disabled=false;$('stop').disabled=true;$('flip').disabled=true;msg('ক্যামেরা ও শেয়ার বন্ধ হয়েছে।')}
+async function join(){let id=$('remoteId').value.trim();if(!id){msg('Room ID লিখুন।');return}if(!window.Peer){msg('লাইব্রেরি লোড হয়নি।');return}
+if(peer){peer.destroy();peer=null}peer=new Peer(undefined,{host:'0.peerjs.com',port:443,path:'/',secure:true});
+peer.on('open',()=>{call=peer.call(id,new MediaStream());$('leave').disabled=false;call.on('stream',s=>{$('remote').srcObject=s;msg('লাইভ ভিডিও চলছে।')});call.on('close',()=>{$('remote').srcObject=null;msg('লাইভ সংযোগ বন্ধ হয়েছে।')});call.on('error',e=>msg('ভিডিও সংযোগে সমস্যা হয়েছে।'));msg('ক্যামেরার ফোনে সংযোগের চেষ্টা চলছে…')});
+peer.on('error',e=>msg('সংযোগ হয়নি: '+e.type+'. Room ID পরীক্ষা করুন.'))}
+$('start').onclick=start;$('stop').onclick=stop;$('flip').onclick=async()=>{mode=mode==='user'?'environment':'user';await start()};$('join').onclick=join;$('leave').onclick=()=>{stopCall();if(peer){peer.destroy();peer=null}msg('দর্শকের সংযোগ বন্ধ।')};
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText($('room').textContent);msg('Room ID কপি হয়েছে।')}catch(e){msg('Room ID হাতে কপি করুন।')}};window.addEventListener('pagehide',stop);
+})();
+</script></body></html>
